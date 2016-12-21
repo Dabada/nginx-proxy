@@ -139,6 +139,10 @@ upstream {{ $host }} {
 
 {{ $is_https := (and (ne $cert "") (exists (printf "/etc/nginx/certs/%s.crt" $cert)) (exists (printf "/etc/nginx/certs/%s.key" $cert))) }}
 
+{{/** Dabada START*/}}
+{{ $gzip := or (first (groupByKeys $ "Env.NGX_GZIP")) "false" }}
+{{/** Dabada END*/}}
+
 {{ if $is_https }}
 
 {{ if eq $https_method "redirect" }}
@@ -160,9 +164,11 @@ server {
 	add_header X-XSS-Protection "1; mode=block";
 	add_header X-Content-Type-Options nosniff;
 
+	{{ if eq $gzip "true" }}
 	gzip on;
 	gzip_min_length 100;
 	gzip_static on;
+	{{ end }}
 
 	client_max_body_size 5M;
 
