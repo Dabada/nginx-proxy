@@ -44,15 +44,21 @@ resolver_timeout 30s;
 gzip_types text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/vnd.groove-tool-template;
 
 
-log_format vhost '$host $remote_addr - $remote_user [$time_local] '
-                 '"$request" $status $body_bytes_sent '
-                 '"$http_referer" "$http_user_agent"';
+log_format vhost '$server_name - $host - $remote_addr - $remote_user [$time_local] '
+                 '[$status $body_bytes_sent] [$gzip_ratio] [$connection_requests] '
+                 '"$request" "$http_referer" "$http_user_agent" ';
 
-access_log off;
+access_log on;
+error_log /dev/stdout info;
 
 {{ if (exists "/etc/nginx/proxy.conf") }}
 include /etc/nginx/proxy.conf;
 {{ else }}
+
+# CAUSE a Connection refused !
+# proxy_ignore_headers 'X-Real-IP' 'X-Forwarded-For' 'X-Forwarded-Proto' 'X-Forwarded-Port' 'X-NginX-Proxy'
+#                      'X-Accel-Redirect' 'X-Accel-Expires' 'Expires' 'Cache-Control';
+
 # HTTP 1.1 support
 proxy_http_version 1.1;
 proxy_buffering off;
@@ -63,6 +69,7 @@ proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
 proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
+proxy_set_header X-NginX-Proxy true;
 
 # Mitigate httpoxy attack (see README for details)
 proxy_set_header Proxy "";
@@ -91,13 +98,14 @@ server {
 {{ range $host, $containers := groupByMulti $ "Env.VIRTUAL_HOST" "," }}
 
 upstream {{ $host }} {
+			# least_conn;
 {{ range $container := $containers }}
 	{{ $addrLen := len $container.Addresses }}
 
 	{{ range $knownNetwork := $CurrentContainer.Networks }}
 		{{ range $containerNetwork := $container.Networks }}
 			{{ if eq $knownNetwork.Name $containerNetwork.Name }}
-				## Can be connect with "{{ $containerNetwork.Name }}" network
+			## Can be connect with "{{ $containerNetwork.Name }}" network
 
 				{{/* If only 1 port exposed, use that */}}
 				{{ if eq $addrLen 1 }}
@@ -114,6 +122,10 @@ upstream {{ $host }} {
 	{{ end }}
 {{ end }}
 }
+
+{{/* SOKET.IO STREAM */}}
+
+
 
 {{ $default_host := or ($.Env.DEFAULT_HOST) "" }}
 {{ $default_server := index (dict $host "" $default_host "default_server") $host }}
@@ -160,14 +172,21 @@ server {
 	access_log /var/log/nginx/access.log vhost;
 
 	server_tokens off;
+	# CAUSE a Connection refused !
+	# merge_slashes on
+
 	proxy_cookie_path / "/; secure; HttpOnly";
 	add_header X-XSS-Protection "1; mode=block";
 	add_header X-Content-Type-Options nosniff;
 
 	{{ if eq $gzip "true" }}
 	gzip on;
-	gzip_min_length 100;
+	gzip_vary on;
+	gzip_buffers 32 4k;
+	gzip_comp_level 5;
+	gzip_min_length 1024;
 	gzip_static on;
+	gzip_proxied expired no-cache no-store no_etag no_last_modified private auth;
 	{{ end }}
 
 	client_max_body_size 5M;
@@ -199,6 +218,9 @@ server {
 	{{ else if (exists "/etc/nginx/vhost.d/default") }}
 	include /etc/nginx/vhost.d/default;
 	{{ end }}
+
+	{{/* SOKET.IO LOCATION */}}
+
 
 	location / {
 		{{ if eq $proto "uwsgi" }}
