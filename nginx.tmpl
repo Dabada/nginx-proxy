@@ -239,34 +239,34 @@ server {
 	{{ if (exists (printf "/etc/nginx/vhost.d/%s" $host)) }}
 	include {{ printf "/etc/nginx/vhost.d/%s" $host }};
 	{{ else if (exists "/etc/nginx/vhost.d/default") }}
-	include /etc/nginx/vhost.d/default;
+		include /etc/nginx/vhost.d/default;
+
+		{{/* SOCKET.IO LOCATION */}}
+		location /socket.io/ {
+		  proxy_pass {{ trim $proto }}://{{ trim (printf "%s_socket.io/socket.io/" (trim $host)) }};
+			# proxy_redirect off;
+		}
+
+		location / {
+			{{ if eq $proto "uwsgi" }}
+			include uwsgi_params;
+			uwsgi_pass {{ trim $proto }}://{{ trim $host }};
+			{{ else }}
+			proxy_pass {{ trim $proto }}://{{ trim $host }};
+			{{ end }}
+			{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
+			auth_basic	"Restricted {{ $host }}";
+			auth_basic_user_file	{{ (printf "/etc/nginx/htpasswd/%s" $host) }};
+			{{ end }}
+	                {{ if (exists (printf "/etc/nginx/vhost.d/%s_location" $host)) }}
+	                include {{ printf "/etc/nginx/vhost.d/%s_location" $host}};
+	                {{ else if (exists "/etc/nginx/vhost.d/default_location") }}
+	                include /etc/nginx/vhost.d/default_location;
+	                {{ end }}
+			# proxy_redirect off;
+		}
 	{{ end }}
-
-	{{/* SOCKET.IO LOCATION */}}
-	location /socket.io/ {
-	  proxy_pass {{ trim $proto }}://{{ trim (printf "%s_socket.io/socket.io/" (trim $host)) }};
-		# proxy_redirect off;
 	}
-
-	location / {
-		{{ if eq $proto "uwsgi" }}
-		include uwsgi_params;
-		uwsgi_pass {{ trim $proto }}://{{ trim $host }};
-		{{ else }}
-		proxy_pass {{ trim $proto }}://{{ trim $host }};
-		{{ end }}
-		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
-		auth_basic	"Restricted {{ $host }}";
-		auth_basic_user_file	{{ (printf "/etc/nginx/htpasswd/%s" $host) }};
-		{{ end }}
-                {{ if (exists (printf "/etc/nginx/vhost.d/%s_location" $host)) }}
-                include {{ printf "/etc/nginx/vhost.d/%s_location" $host}};
-                {{ else if (exists "/etc/nginx/vhost.d/default_location") }}
-                include /etc/nginx/vhost.d/default_location;
-                {{ end }}
-		# proxy_redirect off;
-	}
-}
 
 {{ end }}
 
@@ -280,26 +280,26 @@ server {
 	{{ if (exists (printf "/etc/nginx/vhost.d/%s" $host)) }}
 	include {{ printf "/etc/nginx/vhost.d/%s" $host }};
 	{{ else if (exists "/etc/nginx/vhost.d/default") }}
-	include /etc/nginx/vhost.d/default;
-	{{ end }}
+		include /etc/nginx/vhost.d/default;
 
-	location / {
-		{{ if eq $proto "uwsgi" }}
-		include uwsgi_params;
-		uwsgi_pass {{ trim $proto }}://{{ trim $host }};
-		{{ else }}
-		proxy_pass {{ trim $proto }}://{{ trim $host }};
-		{{ end }}
-		{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
-		auth_basic	"Restricted {{ $host }}";
-		auth_basic_user_file	{{ (printf "/etc/nginx/htpasswd/%s" $host) }};
-		{{ end }}
-                {{ if (exists (printf "/etc/nginx/vhost.d/%s_location" $host)) }}
-                include {{ printf "/etc/nginx/vhost.d/%s_location" $host}};
-                {{ else if (exists "/etc/nginx/vhost.d/default_location") }}
-                include /etc/nginx/vhost.d/default_location;
-                {{ end }}
-	}
+		location / {
+			{{ if eq $proto "uwsgi" }}
+			include uwsgi_params;
+			uwsgi_pass {{ trim $proto }}://{{ trim $host }};
+			{{ else }}
+			proxy_pass {{ trim $proto }}://{{ trim $host }};
+			{{ end }}
+			{{ if (exists (printf "/etc/nginx/htpasswd/%s" $host)) }}
+			auth_basic	"Restricted {{ $host }}";
+			auth_basic_user_file	{{ (printf "/etc/nginx/htpasswd/%s" $host) }};
+			{{ end }}
+									{{ if (exists (printf "/etc/nginx/vhost.d/%s_location" $host)) }}
+									include {{ printf "/etc/nginx/vhost.d/%s_location" $host}};
+									{{ else if (exists "/etc/nginx/vhost.d/default_location") }}
+									include /etc/nginx/vhost.d/default_location;
+									{{ end }}
+		}
+	{{ end }}
 }
 
 {{ if (and (not $is_https) (exists "/etc/nginx/certs/default.crt") (exists "/etc/nginx/certs/default.key")) }}
